@@ -2,85 +2,137 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Investor CSV Upload</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f4f7fa;
+      margin: 0;
+      padding: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      max-width: 500px;
+      width: 100%;
+    }
+
+    h2 {
+      text-align: center;
+      color: #2d3748;
+    }
+
+    label {
+      display: block;
+      margin: 15px 0 5px;
+      color: #4a5568;
+      font-weight: 500;
+    }
+
+    input[type="file"], select {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      margin-top: 20px;
+      width: 100%;
+      padding: 12px;
+      background-color: #2f855a;
+      border: none;
+      color: white;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #276749;
+    }
+
+    .message {
+      margin-top: 20px;
+      text-align: center;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
-  <h1>Upload Investor CSV</h1>
-
-  <form id="upload-form">
-    <label for="csv-file">Choose CSV file:</label>
-    <input type="file" id="csv-file" accept=".csv" required />
-    <br><br>
-
-    <label for="rating">Investor Quality (1–5 stars):</label>
-    <select id="rating" required>
-      <option value="">--Select Rating--</option>
-      <option value="5">⭐⭐⭐⭐⭐</option>
-      <option value="4">⭐⭐⭐⭐</option>
-      <option value="3">⭐⭐⭐</option>
-      <option value="2">⭐⭐</option>
-      <option value="1">⭐</option>
+  <div class="container">
+    <h2>Investor Upload Form</h2>
+    <label for="rating">Investor Quality Rating (1-5 stars)</label>
+    <select id="rating">
+      <option value="1">★☆☆☆☆ (1 - Low Quality)</option>
+      <option value="2">★★☆☆☆ (2)</option>
+      <option value="3">★★★☆☆ (3 - Mid)</option>
+      <option value="4">★★★★☆ (4)</option>
+      <option value="5">★★★★★ (5 - High Quality)</option>
     </select>
-    <br><br>
 
-    <button type="submit">Upload to Supabase</button>
-  </form>
+    <label for="csvFile">Upload CSV File</label>
+    <input type="file" id="csvFile" accept=".csv" />
+    
+    <button onclick="uploadCSV()">Submit</button>
+    <div class="message" id="message"></div>
+  </div>
 
-  <p id="status"></p>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
   <script>
-    const form = document.getElementById("upload-form");
-    const status = document.getElementById("status");
+    async function uploadCSV() {
+      const fileInput = document.getElementById('csvFile');
+      const rating = document.getElementById('rating').value;
+      const message = document.getElementById('message');
 
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-
-      const fileInput = document.getElementById("csv-file");
-      const rating = parseInt(document.getElementById("rating").value);
-
-      if (!fileInput.files.length || isNaN(rating)) {
-        status.textContent = "Please select a file and rating.";
+      if (!fileInput.files.length) {
+        message.innerText = "Please select a CSV file.";
         return;
       }
 
-      const quality = rating >= 4 ? "high" : rating === 3 ? "medium" : "low";
-      const file = fileInput.files[0];
+      const reader = new FileReader();
+      reader.onload = async function(event) {
+        const csv = event.target.result;
+        const rows = csv.trim().split('\n').slice(1); // Skip header
+        const data = rows.map(row => {
+          const [name, website, sector, region, contact_status, notes] = row.split(',');
+          return {
+            name: name?.trim(),
+            website: website?.trim(),
+            sector: sector?.trim(),
+            region: region?.trim(),
+            contact_status: contact_status?.trim(),
+            notes: notes?.trim(),
+            rating: parseInt(rating),
+          };
+        });
 
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: async function (results) {
-          const data = results.data.map((row) => ({
-            ...row,
-            rating: rating,
-            quality: quality,
-          }));
+        const res = await fetch('https://jaxxualfgczfbcizxzfo.supabase.co/rest/v1/investors', {
+          method: 'POST',
+          headers: {
+            apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpheHh1YWxmZ2N6ZmJjaXp4emZvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODM2MzIwMywiZXhwIjoyMDYzOTM5MjAzfQ.PbpgZdwoC1fNe8lRtkHKKqrf_aI3KcEqIiK2uNezP9k',
+            Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpheHh1YWxmZ2N6ZmJjaXp4emZvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODM2MzIwMywiZXhwIjoyMDYzOTM5MjAzfQ.PbpgZdwoC1fNe8lRtkHKKqrf_aI3KcEqIiK2uNezP9k',
+            'Content-Type': 'application/json',
+            Prefer: 'return=representation'
+          },
+          body: JSON.stringify(data)
+        });
 
-          try {
-            const res = await fetch("https://jaxxualfgczfbcizxzfo.supabase.co/rest/v1/investors", {
-              method: "POST",
-              headers: {
-                "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpheHh1YWxmZ2N6ZmJjaXp4emZvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODM2MzIwMywiZXhwIjoyMDYzOTM5MjAzfQ.PbpgZdwoC1fNe8lRtkHKKqrf_aI3KcEqIiK2uNezP9k",
-                "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpheHh1YWxmZ2N6ZmJjaXp4emZvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODM2MzIwMywiZXhwIjoyMDYzOTM5MjAzfQ.PbpgZdwoC1fNe8lRtkHKKqrf_aI3KcEqIiK2uNezP9k",
-                "Content-Type": "application/json",
-                "Prefer": "return=representation"
-              },
-              body: JSON.stringify(data)
-            });
-
-            if (res.ok) {
-              status.textContent = "Upload successful!";
-            } else {
-              const error = await res.text();
-              status.textContent = "Error uploading: " + error;
-            }
-          } catch (error) {
-            status.textContent = "Upload failed: " + error.message;
-          }
+        if (res.ok) {
+          message.innerText = "Upload successful!";
+        } else {
+          message.innerText = "Upload failed.";
         }
-      });
-    });
+      };
+      reader.readAsText(fileInput.files[0]);
+    }
   </script>
 </body>
 </html>
