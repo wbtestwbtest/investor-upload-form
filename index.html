@@ -2,147 +2,85 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Investor CSV Upload</title>
-  
-  <!-- Supabase JS client -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
-  
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 700px;
-      margin: 2rem auto;
-      padding: 0 1rem;
-      background: #f8f9fa;
-      color: #222;
-    }
-    h1 {
-      text-align: center;
-    }
-    label, p {
-      margin-bottom: 0.5rem;
-      font-weight: bold;
-    }
-    input[type="file"] {
-      margin-bottom: 1rem;
-    }
-    button {
-      background-color: #28a745;
-      color: white;
-      border: none;
-      padding: 0.6rem 1.2rem;
-      font-size: 1rem;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    button:disabled {
-      background-color: #6c757d;
-      cursor: not-allowed;
-    }
-  </style>
 </head>
 <body>
+  <h1>Upload Investor CSV</h1>
 
-  <h1>Investor CSV Upload Form</h1>
-  
-  <p>
-    Please upload a CSV file with the following columns:<br />
-    <b>name, website, sector, region, investment_focus, contact_status, notes, rating</b><br />
-    <em><strong>rating</strong>: an integer from 1 (low quality) to 5 (high quality)</em>
-  </p>
+  <form id="upload-form">
+    <label for="csv-file">Choose CSV file:</label>
+    <input type="file" id="csv-file" accept=".csv" required />
+    <br><br>
 
-  <label for="csvFileInput">Select CSV file:</label><br />
-  <input type="file" id="csvFileInput" accept=".csv" />
-  <br />
-  <button id="uploadBtn" disabled>Upload to Supabase</button>
+    <label for="rating">Investor Quality (1–5 stars):</label>
+    <select id="rating" required>
+      <option value="">--Select Rating--</option>
+      <option value="5">⭐⭐⭐⭐⭐</option>
+      <option value="4">⭐⭐⭐⭐</option>
+      <option value="3">⭐⭐⭐</option>
+      <option value="2">⭐⭐</option>
+      <option value="1">⭐</option>
+    </select>
+    <br><br>
 
+    <button type="submit">Upload to Supabase</button>
+  </form>
+
+  <p id="status"></p>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
   <script>
-    // Supabase config - YOUR service role key embedded here
-    const SUPABASE_URL = 'https://jaxxualfgczfbcizxzfo.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpheHh1YWxmZ2N6ZmJjaXp4emZvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODM2MzIwMywiZXhwIjoyMDYzOTM5MjAzfQ.PbpgZdwoC1fNe8lRtkHKKqrf_aI3KcEqIiK2uNezP9k';
+    const form = document.getElementById("upload-form");
+    const status = document.getElementById("status");
 
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
 
-    let csvText = '';
+      const fileInput = document.getElementById("csv-file");
+      const rating = parseInt(document.getElementById("rating").value);
 
-    // When file selected, read it and enable the upload button
-    document.getElementById('csvFileInput').addEventListener('change', function(event) {
-      const file = event.target.files[0];
-      if (!file) return alert('No file selected!');
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        csvText = e.target.result;
-        document.getElementById('uploadBtn').disabled = false;
-      };
-      reader.readAsText(file);
-    });
-
-    // Upload button click handler
-    document.getElementById('uploadBtn').addEventListener('click', async () => {
-      if (!csvText) {
-        alert('Please select a CSV file first.');
-        return;
-      }
-      document.getElementById('uploadBtn').disabled = true;
-      try {
-        await uploadCSVToSupabase(csvText);
-      } catch (error) {
-        alert('Error uploading CSV: ' + error.message);
-      }
-      document.getElementById('uploadBtn').disabled = false;
-    });
-
-    // Main function to parse CSV and insert rows
-    async function uploadCSVToSupabase(csvText) {
-      const lines = csvText.trim().split('\n');
-      if (lines.length < 2) {
-        alert('CSV is empty or missing data rows.');
+      if (!fileInput.files.length || isNaN(rating)) {
+        status.textContent = "Please select a file and rating.";
         return;
       }
 
-      const headers = lines[0].split(',').map(h => h.trim());
-      const rows = lines.slice(1);
+      const quality = rating >= 4 ? "high" : rating === 3 ? "medium" : "low";
+      const file = fileInput.files[0];
 
-      for (const line of rows) {
-        const values = line.split(',').map(v => v.trim());
-        let rowObject = {};
-        headers.forEach((header, i) => {
-          rowObject[header] = values[i] || null;
-        });
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async function (results) {
+          const data = results.data.map((row) => ({
+            ...row,
+            rating: rating,
+            quality: quality,
+          }));
 
-        // Parse rating as integer
-        rowObject.rating = parseInt(rowObject.rating, 10) || null;
+          try {
+            const res = await fetch("https://jaxxualfgczfbcizxzfo.supabase.co/rest/v1/investors", {
+              method: "POST",
+              headers: {
+                "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpheHh1YWxmZ2N6ZmJjaXp4emZvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODM2MzIwMywiZXhwIjoyMDYzOTM5MjAzfQ.PbpgZdwoC1fNe8lRtkHKKqrf_aI3KcEqIiK2uNezP9k",
+                "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpheHh1YWxmZ2N6ZmJjaXp4emZvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODM2MzIwMywiZXhwIjoyMDYzOTM5MjAzfQ.PbpgZdwoC1fNe8lRtkHKKqrf_aI3KcEqIiK2uNezP9k",
+                "Content-Type": "application/json",
+                "Prefer": "return=representation"
+              },
+              body: JSON.stringify(data)
+            });
 
-        // Map rating to quality
-        if (rowObject.rating !== null) {
-          if (rowObject.rating >= 4) {
-            rowObject.quality = 'high';
-          } else if (rowObject.rating === 3) {
-            rowObject.quality = 'medium';
-          } else {
-            rowObject.quality = 'low';
+            if (res.ok) {
+              status.textContent = "Upload successful!";
+            } else {
+              const error = await res.text();
+              status.textContent = "Error uploading: " + error;
+            }
+          } catch (error) {
+            status.textContent = "Upload failed: " + error.message;
           }
-        } else {
-          rowObject.quality = 'unknown';
         }
-
-        // Insert into Supabase
-        const { error } = await supabase
-          .from('investors')
-          .insert([rowObject]);
-
-        if (error) {
-          console.error('Insert error:', error);
-          alert('Error inserting row: ' + error.message);
-          throw error; // stop further uploads
-        }
-      }
-
-      alert('CSV uploaded successfully!');
-    }
+      });
+    });
   </script>
-
 </body>
 </html>
