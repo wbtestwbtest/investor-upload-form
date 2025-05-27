@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Investor CSV Upload (Service Role)</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 10px;
+      background: #f7f7f7;
+    }
+    h1 {
+      color: #2d7a2d;
+    }
+    #output {
+      white-space: pre-wrap;
+      margin-top: 20px;
+      color: #d9534f;
+    }
+    button {
+      background: #2d7a2d;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Upload Investor CSV</h1>
+  <input type="file" id="csvFile" accept=".csv" />
+  <button onclick="uploadCsv()">Upload</button>
+  <pre id="output"></pre>
+
+  <script>
+    // Your Supabase project details
+    const supabaseUrl = 'https://jaxxualfgczfbcizxzfo.supabase.co';
+
+    // WARNING: Keep this key private and only share with trusted users!
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpheHh1YWxmZ2N6ZmJjaXp4emZvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODM2MzIwMywiZXhwIjoyMDYzOTM5MjAzfQ.PbpgZdwoC1fNe8lRtkHKKqrf_aI3KcEqIiK2uNezP9k';
+
+    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+    function uploadCsv() {
+      const fileInput = document.getElementById('csvFile');
+      const output = document.getElementById('output');
+      output.textContent = '';
+
+      if (!fileInput.files.length) {
+        output.textContent = 'Please select a CSV file first.';
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+
+      reader.onload = async function(event) {
+        const text = event.target.result;
+        const rows = text.split('\n').filter(row => row.trim() !== '');
+
+        // Assuming CSV columns: name, company, title, email, phone
+        const investors = rows.slice(1).map(row => {
+          const cols = row.split(',');
+          return {
+            name: cols[0]?.trim() || null,
+            company: cols[1]?.trim() || null,
+            title: cols[2]?.trim() || null,
+            email: cols[3]?.trim() || null,
+            phone: cols[4]?.trim() || null
+          };
+        });
+
+        try {
+          const { data, error } = await supabase
+            .from('investors')
+            .insert(investors);
+
+          if (error) {
+            output.textContent = 'Error inserting data: ' + error.message;
+          } else {
+            output.textContent = 'Successfully uploaded ' + data.length + ' investors!';
+          }
+        } catch (e) {
+          output.textContent = 'Unexpected error: ' + e.message;
+        }
+      };
+
+      reader.readAsText(file);
+    }
+  </script>
+</body>
+</html>
